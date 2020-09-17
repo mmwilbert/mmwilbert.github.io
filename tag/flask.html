@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <meta charset="utf-8" />
+        <meta name="generator" content="Pelican" />
+        <title>A Pelican Blog - Flask</title>
+        <link rel="stylesheet" href="/theme/css/main.css" />
+        <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="A Pelican Blog Atom Feed" />
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="/">A Pelican Blog</a></h1>
+                <nav><ul>
+                    <li><a href="/pages/about.html">About</a></li>
+                    <li><a href="/category/python.html">Python</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+
+            <aside id="featured" class="body">
+                <article>
+                    <h1 class="entry-title"><a href="/flask-logging-with-threads-and-blueprints.html">Flask Logging with Threads and Blueprints</a></h1>
+<footer class="post-info">
+        <abbr class="published" title="2020-09-16T00:00:00+00:00">
+                Published: Wed 16 September 2020
+        </abbr>
+
+<p>In <a href="/category/python.html">Python</a>.</p>
+<p>tags: <a href="/tag/flask.html">Flask</a> <a href="/tag/cloudrun.html">CloudRun</a> <a href="/tag/docker.html">Docker</a> </p>
+</footer><!-- /.post-info --><p>Generally speaking, logging from Flask(https://pypi.org/project/Flask) is straightforward. Flask uses standard Python logging, and you access the logger object via <strong>app.logger</strong>. So a call to the logger might look like</p>
+<div class="highlight"><pre><span></span><code><span class="err">app.logger.info(f&quot;{user.username} logged in&quot;)</span>
+</code></pre></div>
+
+
+<p>If you are using Flask blueprints, it gets slightly more complicated because you don't have the <strong>app</strong> object directly available. However, Flask knows you probably will need it, so they give you a way to get it, by importing <strong>current_app</strong></p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">current_app</span>
+</code></pre></div>
+
+
+<p>And you can just use <strong>current_app</strong> in the blueprint where you would otherwise have used <strong>app</strong></p>
+<div class="highlight"><pre><span></span><code><span class="err">current_app.logger.info(f&quot;(user.username} logged in&quot;)</span>
+</code></pre></div>
+
+
+<p>However, suppose you start a thread that will continue to do something after the request that started it has completed, and you want to log from that thread. You will probably discover that this doesn't work, and you get a runtime error like</p>
+<div class="highlight"><pre><span></span><code><span class="n">RuntimeError</span><span class="o">:</span> <span class="n">Working</span> <span class="n">outside</span> <span class="n">of</span> <span class="n">application</span> <span class="n">context</span><span class="o">.</span>
+</code></pre></div>
+
+
+<p>because the application context disappeared when the request returned. However, the logger is still there, and references to the logger will still work, so all you need to do is store <strong>app.logger</strong> (or <strong>current_app.logger</strong>) somewhere, or pass it into the thread, and logging should be available. I've just been including the logger as an argument to whatever function I'm starting in the thread. Here's what it looks like from a blueprint</p>
+<div class="highlight"><pre><span></span><code><span class="n">executor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">concurrent</span><span class="p">.</span><span class="n">futures</span><span class="p">.</span><span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+
+<span class="n">def</span><span class="w"> </span><span class="n">longRunningTestFunction</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span><span class="err">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">logger</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="ss">&quot;going to sleep&quot;</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="nc">time</span><span class="p">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">3600</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">logger</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="ss">&quot;waking up&quot;</span><span class="p">)</span><span class="w"></span>
+
+<span class="nv">@test_blueprint</span><span class="p">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/test&#39;</span><span class="p">)</span><span class="w"></span>
+<span class="n">def</span><span class="w"> </span><span class="n">run_threadtest</span><span class="p">()</span><span class="err">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">current_app</span><span class="p">.</span><span class="n">logger</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="ss">&quot;starting thread&quot;</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="n">executor</span><span class="p">.</span><span class="n">submit</span><span class="p">(</span><span class="n">longRunningTestFunction</span><span class="p">,</span><span class="n">current_app</span><span class="p">.</span><span class="n">logger</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="ss">&quot;test thread submitted&quot;</span><span class="w"></span>
+</code></pre></div>
+
+
+<p>Without doing any additional setup, this works fine from Cloud Run, where Docker passes the logger messages to stdout/stderr, and Cloud Run logs it from there. Of course you can do the normal Python logging customizations as desired.</p>                </article>
+            </aside><!-- /#featured -->
+        <section id="extras" class="body">
+                <div class="social">
+                        <h2>social</h2>
+                        <ul>
+                            <li><a href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">atom feed</a></li>
+
+                        </ul>
+                </div><!-- /.social -->
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="https://getpelican.com/">Pelican</a>, which takes great advantage of <a href="https://www.python.org/">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is by <a href="https://www.smashingmagazine.com/2009/08/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+</body>
+</html>
